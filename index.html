@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BoltOn.AI | Factory Performance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 10px; border-radius: 4px; border: 1px solid #f1f5f9; }
+        .maintenance-mark { background: #ef4444; color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; items-center; justify-center; }
+        .machine-row { cursor: pointer; transition: all 0.2s; }
+        .machine-row:hover { background-color: #f1f5f9; }
+        .machine-row.active { background-color: #eff6ff; border-left: 4px solid #3b82f6; }
+    </style>
+</head>
+<body class="text-slate-900 min-h-screen">
+
+    <nav class="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-50">
+        <h1 class="text-xl font-black text-slate-900 tracking-tighter">BoltOn<span class="text-blue-600">.AI</span></h1>
+        <div class="flex items-center gap-4">
+            <span class="text-xs font-bold text-slate-400">FACTORY A-12</span>
+            <div class="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold">AD</div>
+        </div>
+    </nav>
+
+    <main class="p-8 max-w-[1600px] mx-auto space-y-8">
+        
+        <!-- Top Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card flex flex-col items-center">
+                <h3 class="font-bold text-sm mb-4 self-start">Overall Machine Health</h3>
+                <div class="w-full h-64">
+                    <canvas id="healthPieChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card lg:col-span-2 overflow-hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-sm">Machine Conditions</h3>
+                    <div class="flex gap-2">
+                        <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold uppercase tracking-tight">Shift: 10AM-8PM</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="text-slate-400 border-b border-slate-100">
+                                <th class="pb-3 font-bold">MACHINE</th>
+                                <th class="pb-3 font-bold">SHAKE (VIB)</th>
+                                <th class="pb-3 font-bold">HEAT</th>
+                                <th class="pb-3 font-bold">RUNTIME</th>
+                                <th class="pb-3 font-bold">CONDITION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="machine-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Row: Timeline -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card lg:col-span-2 hidden" id="timeline-container">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="font-bold text-sm" id="timeline-title">Machine Timeline</h3>
+                    <div class="text-[10px] bg-slate-100 px-2 py-1 rounded font-bold text-slate-500 uppercase">24 Hour Log</div>
+                </div>
+                <div class="h-80">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+                <div class="mt-6 flex flex-wrap gap-4 text-[10px] font-bold uppercase">
+                    <div class="flex items-center gap-1"><span class="w-3 h-3 bg-[#10b981] rounded-sm"></span> Good</div>
+                    <div class="flex items-center gap-1"><span class="w-3 h-3 bg-[#f59e0b] rounded-sm"></span> Warning</div>
+                    <div class="flex items-center gap-1"><span class="w-3 h-3 bg-[#ef4444] rounded-sm"></span> Danger</div>
+                    <div class="flex items-center gap-1"><span class="w-3 h-3 bg-[#ffdbac] rounded-sm"></span> Idle</div>
+                    <div class="flex items-center gap-1"><span class="w-3 h-3 bg-[#1e293b] rounded-sm"></span> Stopped (Non-Shift)</div>
+                </div>
+                <div class="mt-4 p-2 bg-slate-50 border border-slate-100 rounded text-[10px] text-slate-500">
+                    Showing shift performance from <strong>10:00 AM to 08:00 PM</strong> centered between off-hours.
+                </div>
+            </div>
+
+            <div class="card lg:col-span-2 flex flex-col items-center justify-center text-slate-400 space-y-2" id="timeline-placeholder">
+                <i data-lucide="mouse-pointer-2" size="48"></i>
+                <p class="text-sm font-medium">Select a machine to view shift history</p>
+            </div>
+
+            <div class="card">
+                <h3 class="font-bold text-sm mb-4">Maintenance Schedule</h3>
+                <div class="calendar-grid" id="maintenance-calendar"></div>
+                <div class="mt-4 p-3 bg-slate-50 rounded-lg">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Upcoming Service</p>
+                    <p class="text-xs font-bold text-slate-800 mt-1" id="upcoming-service">Select machine...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Row -->
+        <div class="grid grid-cols-1 gap-6">
+            <div class="card">
+                <h3 class="font-bold text-sm mb-4 flex items-center justify-between">
+                    Daily Power Usage (kWh)
+                    <span class="text-blue-600 font-bold">Total: 1,240 kWh</span>
+                </h3>
+                <div class="h-64">
+                    <canvas id="powerChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const machines = [
+            { id: 0, name: "Mill Alpha", vib: 1.2, heat: "42°C", runtime: "10h", health: "Good", color: "emerald", maintenance: "Feb 28th" },
+            { id: 1, name: "Mill Beta", vib: 2.8, heat: "58°C", runtime: "10h", health: "Warning", color: "amber", maintenance: "Mar 05th" },
+            { id: 2, name: "Water Pump", vib: 0.8, heat: "31°C", runtime: "10h", health: "Good", color: "emerald", maintenance: "Mar 12th" },
+            { id: 3, name: "Heavy Press", vib: 5.1, heat: "82°C", runtime: "10h", health: "Bad", color: "red", maintenance: "Feb 26th" },
+            { id: 4, name: "3D Forge", vib: 1.1, heat: "210°C", runtime: "10h", health: "Good", color: "emerald", maintenance: "Mar 02nd" }
+        ];
+
+        let timelineChartInstance = null;
+
+        const tableBody = document.getElementById('machine-table-body');
+        machines.forEach(m => {
+            const row = document.createElement('tr');
+            row.id = `machine-row-${m.id}`;
+            row.className = "machine-row border-b border-slate-50";
+            row.innerHTML = `
+                <td class="py-4 font-bold text-slate-700">${m.name}</td>
+                <td class="py-4 text-slate-500">${m.vib} mm/s</td>
+                <td class="py-4 text-slate-500">${m.heat}</td>
+                <td class="py-4 text-slate-500">${m.runtime}</td>
+                <td class="py-4">
+                    <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-${m.color}-100 text-${m.color}-600">
+                        ${m.health === 'Bad' ? 'Danger' : m.health}
+                    </span>
+                </td>
+            `;
+            row.onclick = () => selectMachine(m.id);
+            tableBody.appendChild(row);
+        });
+
+        function selectMachine(id) {
+            document.querySelectorAll('.machine-row').forEach(r => r.classList.remove('active'));
+            document.getElementById(`machine-row-${id}`).classList.add('active');
+            document.getElementById('timeline-placeholder').classList.add('hidden');
+            document.getElementById('timeline-container').classList.remove('hidden');
+            
+            const machine = machines[id];
+            document.getElementById('timeline-title').innerText = `${machine.name} - 24hr Status Breakdown`;
+            document.getElementById('upcoming-service').innerText = `${machine.name} - ${machine.maintenance}`;
+
+            updateTimelineChart(machine);
+        }
+
+        new Chart(document.getElementById('healthPieChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Good', 'Warning', 'Danger'],
+                datasets: [{
+                    data: [3, 1, 1],
+                    backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+        });
+
+        function formatHour(hr) {
+            if (hr === 0 || hr === 24) return "12 AM";
+            if (hr === 12) return "12 PM";
+            return hr > 12 ? `${hr - 12} PM` : `${hr} AM`;
+        }
+
+        function updateTimelineChart(machine) {
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            
+            // LAYER 1: Morning Stopped (12 AM - 10 AM) = 10 hours
+            let morningStopped = [10, 10, 10, 10, 10, 10, 10];
+            
+            // LAYER 2: Active Shift (10 AM - 8 PM) = 10 hours
+            // This 10h block is split into statuses
+            let good = [10, 10, 10, 10, 10, 10, 10];
+            let warning = [0, 0, 0, 0, 0, 0, 0];
+            let danger = [0, 0, 0, 0, 0, 0, 0];
+            let idle = [0, 0, 0, 0, 0, 0, 0];
+
+            // LAYER 3: Evening Stopped (8 PM - 12 AM) = 4 hours
+            let eveningStopped = [4, 4, 4, 4, 4, 4, 4];
+
+            // Assign machine-specific conditions to the MIDDLE 10-hour block
+            if (machine.name === "Mill Beta") {
+                warning = [0, 0, 0, 0, 0, 0, 5]; 
+                good = [10, 10, 10, 10, 10, 10, 5];
+            } else if (machine.name === "Heavy Press") {
+                danger = [0, 0, 0, 0, 0, 0, 3];
+                good = [10, 10, 10, 10, 10, 10, 7];
+            } else if (machine.id > 1) {
+                good = [7, 7, 7, 7, 7, 7, 7];
+                idle = [3, 3, 3, 3, 3, 3, 3];
+            }
+
+            if (timelineChartInstance) timelineChartInstance.destroy();
+
+            timelineChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: days,
+                    datasets: [
+                        { label: 'Stopped (Morning)', data: morningStopped, backgroundColor: '#1e293b', stack: 'stack0' },
+                        { label: 'Idle', data: idle, backgroundColor: '#ffdbac', stack: 'stack0' },
+                        { label: 'Good', data: good, backgroundColor: '#10b981', stack: 'stack0' },
+                        { label: 'Warning', data: warning, backgroundColor: '#f59e0b', stack: 'stack0' },
+                        { label: 'Danger', data: danger, backgroundColor: '#ef4444', stack: 'stack0' },
+                        { label: 'Stopped (Evening)', data: eveningStopped, backgroundColor: '#1e293b', stack: 'stack0' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { 
+                        x: { stacked: true }, 
+                        y: { 
+                            stacked: true, 
+                            max: 24,
+                            ticks: { 
+                                stepSize: 2,
+                                callback: function(value) { return formatHour(value); }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Time of Day',
+                                font: { size: 10, weight: 'bold' }
+                            }
+                        } 
+                    },
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.dataset.label}: ${context.raw}h`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        const calendar = document.getElementById('maintenance-calendar');
+        const maintenanceDays = [4, 12, 18, 28];
+        for (let i = 1; i <= 31; i++) {
+            const day = document.createElement('div');
+            day.className = "calendar-day text-slate-400";
+            if (maintenanceDays.includes(i)) day.innerHTML = `<div class="maintenance-mark">${i}</div>`;
+            else day.innerText = i;
+            calendar.appendChild(day);
+        }
+
+        new Chart(document.getElementById('powerChart'), {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Usage',
+                    data: [1100, 1250, 1180, 1400, 1320, 900, 850],
+                    borderColor: '#3b82f6',
+                    tension: 0.4,
+                    fill: true,
+                    backgroundColor: 'rgba(59, 130, 246, 0.05)'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        lucide.createIcons();
+    </script>
+</body>
+</html>
